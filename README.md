@@ -1,19 +1,4 @@
-# Запуск на компьютере
-
-В корне проекта выполните команды. При создании пользователя `demo` введите и подтвердите учебный пароль в скрытом приглашении.
-
-```sh
-python3.14 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-export JWT_SECRET="$(openssl rand -hex 32)"
-python -m flask --app app create-user demo
-python -m flask --app app run --host 127.0.0.1 --port 8081
-```
-
-Сервер принимает локальные запросы по адресу `http://127.0.0.1:8081`. Значение `JWT_SECRET` хранится в окружении процесса запуска.
-
-## Методы API
+# Методы API
 
 Для POST передавайте JSON с заголовком `Content-Type: application/json`. Методы работы с заметками принимают заголовок `Authorization: Bearer <access_token>`.
 
