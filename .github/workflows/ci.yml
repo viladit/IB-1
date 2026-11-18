@@ -44,8 +44,8 @@ jobs:
           audit_env="$RUNNER_TEMP/audit-env"
           python -m venv "$audit_env"
           "$audit_env/bin/python" -m pip install pip-audit==2.10.1
-          "$audit_env/bin/pip-audit" -r requirements.txt -r requirements-dev.txt \
-            --no-deps --disable-pip --format json --output reports/pip-audit.json
+          "$audit_env/bin/pip-audit" --strict -r requirements-dev.txt \
+            --format json --output reports/pip-audit.json
 
       - name: Snyk Open Source (optional)
         if: >-
