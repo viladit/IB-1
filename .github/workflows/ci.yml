@@ -1,0 +1,77 @@
+name: API checks
+
+on: [push, pull_request]
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.14'
+
+      - name: Install dependencies
+        id: dependencies
+        run: |
+          python -m pip install --requirement requirements-dev.txt
+          python -m pip check
+          mkdir -p reports
+
+      - name: Test the API
+        run: python -m pytest -q
+
+      - name: Bandit (SAST)
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        run: bandit -f txt app.py | tee reports/bandit.txt
+
+      - name: pip-audit (SCA)
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        run: |
+          audit_env="$RUNNER_TEMP/audit-env"
+          python -m venv "$audit_env"
+          "$audit_env/bin/python" -m pip install pip-audit==2.10.1
+          "$audit_env/bin/pip-audit" -r requirements.txt -r requirements-dev.txt \
+            --no-deps --disable-pip --format json --output reports/pip-audit.json
+
+      - name: Snyk Open Source (optional)
+        if: >-
+          ${{ !cancelled() && steps.dependencies.outcome == 'success' &&
+          (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+          SNYK_DISABLE_ANALYTICS: '1'
+        run: |
+          if [[ -z "$SNYK_TOKEN" ]]; then
+            echo 'Optional Snyk scan skipped because SNYK_TOKEN is unset.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          snyk_bin="$RUNNER_TEMP/snyk"
+          curl --fail --silent --show-error --location --retry 3 \
+            https://github.com/snyk/cli/releases/download/v1.1308.4/snyk-linux \
+            --output "$snyk_bin"
+          printf '%s  %s\n' 979172ee128903f50e43fff221f22a0689579f22c086dabaa0d1a5416485b9ba "$snyk_bin" | sha256sum --check
+          chmod 700 "$snyk_bin"
+          "$snyk_bin" test --file=requirements.txt --package-manager=pip \
+            --command=python --json-file-output=reports/snyk.json
+
+      - name: Upload security reports
+        if: ${{ !cancelled() && steps.dependencies.outcome == 'success' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: security-reports
+          path: reports/
+          if-no-files-found: error
