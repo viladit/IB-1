@@ -1,4 +1,5 @@
-name: API checks
+name: ИБ Лабораторная 1
+run-name: ИБ Лабораторная 1
 
 on: [push, pull_request]
 
